@@ -115,7 +115,9 @@ public:
       sphere1 = new Barrel2Masses ( odeHandle, osgHandle.changeColor(Color(0.0,0.0,1.0)),
                                     conf, "Barrel1", 0.4);
 
-      sphere1->place (osg::Matrix::rotate(M_PI/2, 1,0,0)*osg::Matrix::translate(0,0,0.2));
+      sphere1->place (osg::Matrix::rotate(M_PI/2, 1,0,0)
+                      * osg::Matrix::rotate(M_PI/4, 0,1,0)
+                      * osg::Matrix::translate(0,0,0.2));
 
       // InvertMotorNStepConf cc = InvertMotorNStep::getDefaultConf();
       // cc.cInit=1;
