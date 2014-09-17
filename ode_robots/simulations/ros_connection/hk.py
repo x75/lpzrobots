@@ -2,6 +2,9 @@
 """homekinesis with python, compare playfulmachines
 $ python hk.py -h"""
 
+# FIXME: put the learner / control structure into class to easily load
+#        der/martius or reservoir model
+
 import time, argparse, sys
 import numpy as np
 import rospy
@@ -17,7 +20,7 @@ def idtanh(x):
     return 1./dtanh(x) # hm?
 
 class LPZRos(object):
-    modes = {"hs": 0, "hk": 1}
+    modes = {"hs": 0, "hk": 1, "eh_pi_d": 2}
     def __init__(self, mode="hs"):
         self.name = "lpzros"
         self.mode = LPZRos.modes[mode]
@@ -41,8 +44,8 @@ class LPZRos(object):
         self.epsA = 0.02
         # self.epsA = 0.001
         # self.epsC = 0.001
-        self.epsC = 0.1
-        # self.epsC = 0.5
+        # self.epsC = 0.1
+        self.epsC = 0.5
 
         ############################################################
         # forward model
@@ -60,7 +63,7 @@ class LPZRos(object):
         # auxiliary variables
         self.L     = np.zeros((self.numsen, self.nummot))
         self.v_avg = np.zeros((self.numsen, 1)) 
-        self.xsi   = np.zeros((self.numsen, 1)) 
+        self.xsi   = np.zeros((self.numsen, 1))
         
     def cb_sensors(self, msg):
         """lpz sensors callback: receive sensor values, sos algorithm attached"""
