@@ -4,6 +4,7 @@ $ python hk.py -h"""
 
 # FIXME: put the learner / control structure into class to easily load
 #        der/martius or reservoir model
+# FIXME: control listeners for eta, theta, soft_lim, ...
 
 import time, argparse, sys
 import numpy as np
@@ -24,11 +25,16 @@ jarLocation = "../../../../infodynamics-dist/infodynamics.jar"
 startJVM(getDefaultJVMPath(), "-ea", "-Djava.class.path=" + jarLocation)
 
 class LPZRosEH(object):
-    modes = {"eh_pi_d": 2}
-    piCalcClass = JPackage("infodynamics.measures.discrete").PredictiveInformationCalculatorDiscrete
-    # print piCalcClass
+    modes = {"eh_pi_d": 2, "eh_ais_d": 3, "eh_pi_c_l": 4, "eh_var": 5, "eh_ent_d": 6, "eh_pi_c_avg": 7}
+
     base = 1000
     basehalf = base/2
+    
+    entCalcClassD = JPackage("infodynamics.measures.discrete").EntropyCalculatorDiscrete
+    entCalc = entCalcClassD(base)
+
+    piCalcClass = JPackage("infodynamics.measures.discrete").PredictiveInformationCalculatorDiscrete
+    # print piCalcClass
     piCalc10 = piCalcClass(base,1)
 
     aisCalcClassD = JPackage("infodynamics.measures.discrete").ActiveInformationCalculatorDiscrete
@@ -51,19 +57,23 @@ class LPZRosEH(object):
         self.pub_res_r    = rospy.Publisher("/reservoir/r", Float64MultiArray)
         self.pub_res_w    = rospy.Publisher("/reservoir/w", Float64MultiArray)
         self.pub_res_perf = rospy.Publisher("/reservoir/perf", Float64MultiArray)
+        self.pub_res_perf_lp = rospy.Publisher("/reservoir/perf_lp", Float64MultiArray)
+        self.pub_res_mdltr = rospy.Publisher("/reservoir/mdltr", Float64MultiArray)
         self.sub_sensor   = rospy.Subscriber("/sensors", Float64MultiArray, self.cb_sensors)
         # pub=rospy.Publisher("/chatter", Float64MultiArray)
         self.msg          = Float64MultiArray()
         self.msg_res_r    = Float64MultiArray()
         self.msg_res_w    = Float64MultiArray()
         self.msg_res_perf = Float64MultiArray()
+        self.msg_res_perf_lp = Float64MultiArray()
+        self.msg_res_mdltr = Float64MultiArray()
 
         # controller
         self.N = 200
         self.p = 0.1
         # self.g = 1.5
-        self.g = 1.2
-        # self.g = 0.999
+        # self.g = 1.2
+        self.g = 0.999
         # self.g = 0.001
         # self.g = 0.
         self.alpha = 1.0
@@ -72,7 +82,8 @@ class LPZRosEH(object):
         # self.wf_amp = 0.005
         # self.wi_amp = 0.01
         # self.wi_amp = 0.1
-        self.wi_amp = 1.0
+        # self.wi_amp = 1.0 # barrel
+        self.wi_amp = 5.0
 
         self.idim = 2
         self.odim = 2
@@ -111,10 +122,14 @@ class LPZRosEH(object):
         self.perf_lp_t = np.zeros((2,self.simtime_len))
         # self.coeff_a = 0.2
         # self.coeff_a = 0.1
-        # self.coeff_a = 0.05
-        self.coeff_a = 0.001
-        self.eta_init = 0.0001
+        self.coeff_a = 0.05
+        # self.coeff_a = 0.03
+        # self.coeff_a = 0.001
+        # self.coeff_a = 0.0001
+        # self.eta_init = 0.0001
         # self.eta_init = 0.001 # limit energy in perf
+        self.eta_init = 0.0025 # limit energy in perf
+        # self.eta_init = 0.01 # limit energy in perf
         self.T = 200000.
         # self.T = 2000.
 
@@ -165,13 +180,17 @@ class LPZRosEH(object):
         self.sp = 0.4
 
         # explicit memory
+        # self.piwin = 100
         # self.piwin = 200
-        self.piwin = 500
+        # self.piwin = 500
         # self.piwin = 1000
+        self.piwin = 2000
+
         self.x_t = np.zeros((self.idim, self.piwin))
         self.z_t = np.zeros((self.odim, self.piwin))
 
-        self.wgt_lim = 0.2
+        # self.wgt_lim = 0.5 # barrel
+        self.wgt_lim = 0.1
         self.wgt_lim_inv = 1/self.wgt_lim
         
         self.init = True
@@ -179,20 +198,24 @@ class LPZRosEH(object):
 
     def soft_bound(self):
         # FIXME: for now its actually hard bounded
+        # FIXME: modulate self.eta_init for effective soft bounds
+        # FIXME: decouple the readouts / investigate coupled vs. uncoupled
         # 1 determine norm
         wo_norm = np.linalg.norm(self.res.wo, 2)
         print "|wo| =", wo_norm
         # 2 scale weights down relatively to some setpoint norm
         if wo_norm > self.wgt_lim:
             self.res.wo /= (wo_norm * self.wgt_lim_inv)
-        # 3 slight randomization / single weight flips?
-        for ro_idx in range(self.odim):
-            if np.random.uniform(0., 1.) > 0.95:
-                numchoice = np.random.randint(0, 5)
-                selidx = np.random.choice(self.N, numchoice, replace=False)
-                print "randomize weights", selidx
-                self.res.wo[selidx, ro_idx] += np.random.normal(self.res.wo[selidx, ro_idx], 0.001)
-        
+            # 3 slight randomization / single weight flips?
+            for ro_idx in range(self.odim):
+                if np.random.uniform(0., 1.) > 0.95:
+                    numchoice = np.random.randint(0, 5)
+                    selidx = np.random.choice(self.N, numchoice, replace=False)
+                    print "randomize weights", selidx
+                    # self.res.wo[selidx, ro_idx] += np.random.normal(self.res.wo[selidx, ro_idx], 0.001)
+                    # reduce weights only
+                    self.res.wo[selidx, ro_idx] -= np.random.exponential(0.001, numchoice)
+                    
     def cb_sensors(self, msg):
         """lpz sensors callback: receive sensor values, sos algorithm attached"""
         if not self.init: return
@@ -209,43 +232,70 @@ class LPZRosEH(object):
 
         # learning
         dw = 0
-        if self.cnt > 0: # self.piwin:
-            if self.mode == LPZRosEH.modes["eh_pi_d"]: # EH learning, discrete PI
-                for sysdim in range(self.idim):
-                    # x_tmp = self.x_t[sysdim,:]
-                    # x_tmp = (((self.x_t[sysdim,:] / (2*np.pi)) + 0.5) * 999).astype(int)
-                    x_tmp = (((self.x_t[sysdim,:] / 3.) + 0.5) * 999).astype(int)
-                    # print "x_tmp", sysdim, x_tmp
-                    # x_tmp = x_tmp - np.min(x_tmp)
-                    # x_tmp = ((x_tmp / np.max(x_tmp)) * (LPZRosEH.base-1)).astype(int)
-                    # print "x_tmp", x_tmp
+        # if self.cnt > 0: # self.piwin:
+        if self.cnt > self.piwin:
+            for sysdim in range(self.idim):
+                attachThreadToJVM()
+                # x_tmp = self.x_t[sysdim,:]
+                # x_tmp = (((self.x_t[sysdim,:] / (2*np.pi)) + 0.5) * 999).astype(int)
+                # discrete ENT / PI / AIS / ...
+                # FIXME: use digitize and determine bin boundaries from min/max
+                x_tmp = (((self.x_t[sysdim,:] / 3.) + 0.5) * 999).astype(int)
+                # print "x_tmp", sysdim, x_tmp
+                # x_tmp = x_tmp - np.min(x_tmp)
+                # x_tmp = ((x_tmp / np.max(x_tmp)) * (LPZRosEH.base-1)).astype(int)
+                # print "x_tmp", x_tmp
+                # # print "jvm", isThreadAttachedToJVM()
+                # pis = LPZRosEH.piCalc10.computeLocal(x_tmp)
+                if self.mode == LPZRosEH.modes["eh_ent_d"]: # EH learning, discrete PI
+                    # plain entropy
+                    pis = LPZRosEH.entCalc.computeLocal(x_tmp)
+                    self.perf[0,sysdim] = list(pis)[-1] * -1
+                elif self.mode == LPZRosEH.modes["eh_pi_d"]: # EH learning, discrete PI
+                    # predictive information
                     # pis = LPZRosEH.piCalc10.computeLocal(x_tmp)
-                    attachThreadToJVM()
-                    # # print "jvm", isThreadAttachedToJVM()
-                    # pis = LPZRosEH.piCalc10.computeLocal(x_tmp)
-                    # # pis = LPZRosEH.aisCalc.computeLocal(x_tmp)
                     # self.perf[0,sysdim] = list(pis)[-1]
-                    
-                    # continuous measure
+                    pis = LPZRosEH.piCalc10.computeAverageLocal(x_tmp)
+                    self.perf[0,sysdim] = pis
+                elif self.mode == LPZRosEH.modes["eh_ais_d"]: # EH learning, discrete PI
+                    # pis = LPZRosEH.aisCalc.computeLocal(x_tmp)
+                    # self.perf[0,sysdim] = list(pis)[-1]
+                    pis = LPZRosEH.aisCalc.computeAverageLocal(x_tmp)
+                    self.perf[0,sysdim] = pis
+                elif self.mode == LPZRosEH.modes["eh_pi_c_l"]: # EH learning, discrete PI
+                    # local continuous predictive information
                     LPZRosEH.piCalc.initialise(1, 1, 0.5); # Use history length 1 (Schreiber k=1),
                     x_src = np.atleast_2d(self.x_t[sysdim,0:-1]).T
                     x_dst = np.atleast_2d(self.x_t[sysdim,1:]).T
                     LPZRosEH.piCalc.setObservations(x_src, x_dst)
-                    # self.perf[0,sysdim] = LPZRosEH.piCalc.computeAverageLocalOfObservations()
                     pis = LPZRosEH.piCalc.computeLocalOfPreviousObservations()
                     self.perf[0,sysdim] = list(pis)[-1]
-                    
+                elif self.mode == LPZRosEH.modes["eh_pi_c_avg"]: # EH learning, discrete PI
+                    # average continuous predictive information
+                    LPZRosEH.piCalc.initialise(1, 1, 0.5); # Use history length 1 (Schreiber k=1),
+                    x_src = np.atleast_2d(self.x_t[sysdim,0:-1]).T
+                    x_dst = np.atleast_2d(self.x_t[sysdim,1:]).T
+                    LPZRosEH.piCalc.setObservations(x_src, x_dst)
+                    self.perf[0,sysdim] = LPZRosEH.piCalc.computeAverageLocalOfObservations()
+                elif self.mode == LPZRosEH.modes["eh_var"]: # EH learning, discrete PI
+                    # variance
+                    self.perf[0,sysdim] = np.var(self.x_t[sysdim,:])
+                else:
+                    self.perf[0,sysdim] = 0.
                     # print "pis", pis
             print "perf", self.perf
 
             # recent performance
             self.perf_lp = self.perf_lp * (1 - self.coeff_a) + self.perf * self.coeff_a
+            
             ############################################################
             # learning
+            # FIXME: put that into res / model member function
             for ro_idx in range(self.odim):
                 # if gaussian / acc based
                 # if perf[0, ro_idx] > (perf_lp[0, ro_idx] + 0.1):
                 # for information based
+                # FIXME: consider single perf / modulator for all readouts
                 if self.perf[0, ro_idx] > self.perf_lp[0, ro_idx]:
                     self.mdltr[0, ro_idx] = 1.
                 else:
@@ -259,6 +309,7 @@ class LPZRosEH(object):
                 # dw = eta * (zn.T - zn_lp) * mdltr * r
                 # wo += dw
                 dw = eta * (self.res.zn.T - self.res.zn_lp.T) * self.mdltr * self.res.r
+                # print dw
                 self.res.wo += dw
                 # FIXME: apply soft bounding on weights or weight decay
                 self.soft_bound()
@@ -291,6 +342,10 @@ class LPZRosEH(object):
         self.pub_res_w.publish(self.msg_res_w)
         self.msg_res_perf.data = self.perf.flatten().tolist()
         self.pub_res_perf.publish(self.msg_res_perf)
+        self.msg_res_perf_lp.data = self.perf_lp.flatten().tolist()
+        self.pub_res_perf_lp.publish(self.msg_res_perf_lp)
+        self.msg_res_mdltr.data = self.mdltr.flatten().tolist()
+        self.pub_res_mdltr.publish(self.msg_res_mdltr)
         # time.sleep(0.1)
         # if self.cnt > 20:
         #     rospy.signal_shutdown("stop")
@@ -299,7 +354,8 @@ class LPZRosEH(object):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="lpzrobots ROS controller: test empiricial predictive information")
-    parser.add_argument("-m", "--mode", type=str, help="select mode: " + str(LPZRosEH.modes))
+    parser.add_argument("-m", "--mode", type=str, help="select mode: " + str(LPZRosEH.modes),
+                        default="eh_pi_d")
     # parser.add_argument("-m", "--mode", type=int, help="select mode: ")
     args = parser.parse_args()
 
