@@ -46,6 +46,8 @@
 #include <ode_robots/axisorientationsensor.h>
 #include <ode_robots/speedsensor.h>
 
+#include <ode_robots/nimm2.h>
+
 #include "roscontroller.h"
 
 
@@ -58,6 +60,7 @@ class ThisSim : public Simulation {
 public:
   AbstractController *controller;
   OdeRobot* sphere1;
+  OdeRobot* nimm2;
   int useReinforcement;
   Sensor* sensor;
 
@@ -66,8 +69,9 @@ public:
   // starting function (executed once at the beginning of the simulation loop)
   void start(const OdeHandle& odeHandle, const OsgHandle& osgHandle, GlobalData& global)
   {
-    int num_barrels=1;
+    int num_barrels=0;
     int num_barrels_test=0;
+    int num_nimm2 = 1;
 
     sensor=0;
     setCameraMode(Follow);
@@ -140,7 +144,7 @@ public:
 
       AbstractWiring* wiring = new SelectiveOne2OneWiring(new ColorUniformNoise(), new select_from_to(0,1));
       //      OdeAgent* agent = new OdeAgent ( PlotOption(File, Robot, 1) );
-      OdeAgent* agent = new OdeAgent ();
+      OdeAgent* agent = new OdeAgent (global);
       agent->init ( controller , sphere1 , wiring );
       //  agent->setTrackOptions(TrackRobot(true, false, false, "ZSens_Ring10_11", 50));
       global.agents.push_back ( agent );
@@ -172,14 +176,48 @@ public:
       //       dc.useFirstD=false;
       //       AbstractWiring* wiring = new DerivativeWiring(dc,new ColorUniformNoise());
       AbstractWiring* wiring = new One2OneWiring(new ColorUniformNoise());
-      OdeAgent* agent = new OdeAgent ();
+      OdeAgent* agent = new OdeAgent (global);
       agent->init ( controller , sphere1 , wiring );
       //  agent->setTrackOptions(TrackRobot(true, false, false, "ZSens_Ring10_11", 50));
       global.agents.push_back ( agent );
       global.configs.push_back ( controller );
     }
 
+    /* * * * two wheeled * * * */
+    for(int i=0; i< num_nimm2; i++){
+      std::cout << "nimm2: " << i << std::endl;
+      Nimm2Conf nimm2conf = Nimm2::getDefaultConf();
+      nimm2conf.size = 1;
+      nimm2conf.force = 5;
+      nimm2conf.speed=20;
+      //      nimm2conf.speed=15;
+      //      nimm2conf.cigarMode=true;
+      nimm2conf.singleMotor=false;
+      //      nimm2conf.boxMode=true;
+      //      nimm2conf.visForce =true;
+      //      nimm2conf.bumper=true;
 
+
+      nimm2 = new Nimm2(odeHandle, osgHandle, nimm2conf, "TwoWheeled");
+
+      nimm2->setColor(Color(.9,.9,0.0));        
+      nimm2->place(Pos(2.,0.,.2));
+
+      controller = new ROSController("Test_Two_Wheeled");
+
+      AbstractWiring* wiring = new SelectiveOne2OneWiring(new ColorUniformNoise(), new select_from_to(0,1));
+      //      OdeAgent* agent = new OdeAgent ( PlotOption(File, Robot, 1) );
+      OdeAgent* agent = new OdeAgent (global);
+      agent->init ( controller , nimm2 , wiring );
+      //  agent->setTrackOptions(TrackRobot(true, false, false, "ZSens_Ring10_11", 50));
+      global.agents.push_back ( agent );
+      global.configs.push_back ( controller );
+
+
+      // global.agents.push_back(agent);
+      // global.configs.push_back(agent);
+      
+    }
 
   }
 
