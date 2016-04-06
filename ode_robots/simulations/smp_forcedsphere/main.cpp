@@ -75,18 +75,24 @@
  *
  ***************************************************************************/
 
+#include <stdio.h>
+
 // include simulation environment stuff
 #include <ode_robots/simulation.h>
 
 // include agent (class for holding a robot, a controller and a wiring)
 #include <ode_robots/odeagent.h>
 #include <ode_robots/octaplayground.h> // arena
+#include <ode_robots/playground.h>
 #include <ode_robots/passivesphere.h>  // passive balls
+#include <ode_robots/passivebox.h>
+#include <ode_robots/joint.h>
 
 // controller
 #include <selforg/invertmotorspace.h>
 #include <selforg/sinecontroller.h>
 
+// wirings
 #include <selforg/noisegenerator.h> // include noisegenerator (used for adding noise to sensorvalues)
 #include <selforg/one2onewiring.h>  // simple wiring
 #include <selforg/motornoisewiring.h>  // simple wiring
@@ -96,7 +102,13 @@
 #include <ode_robots/axisorientationsensor.h>
 #include <ode_robots/forcedsphere.h>  // passive balls
 
+// sensors
 #include <ode_robots/axisorientationsensor.h>
+// camera
+#include <ode_robots/camera.h>
+#include <ode_robots/imageprocessors.h>
+#include <ode_robots/camerasensors.h>
+#include <ode_robots/opticalflow.h>
 
 // fetch all the stuff of lpzrobots into scope
 using namespace lpzrobots;
@@ -195,7 +207,7 @@ public:
     
     //  SineController (produces just sine waves)
     controller2 = new SineController();
-    controller2->setParam("amplitude", 1);
+    controller2->setParam("amplitude", 0.0);
     controller2->setParam("period", 100);
     controller2->setParam("phaseshift", 0.5);
     global.configs.push_back ( controller2 );
