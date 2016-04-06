@@ -110,7 +110,7 @@
 #include <ode_robots/sphererobot3masses.h>
 #include <ode_robots/plattfussschlange.h>
 #include <ode_robots/hurlingsnake.h>
-//#include <ode_robots/forcedsphere.h>
+// #include <ode_robots/forcedsphere.h>
 #include <ode_robots/nimm2.h>
 #include <ode_robots/schlangeservo.h>
 
@@ -251,8 +251,8 @@ public:
       // conf.irCharacter=0.5;
       sphere1 = new Sphererobot3Masses ( odeHandle, osgHandle.changeColor(Color(1.0,0.0,0.0)),
                                                 conf, "Sphere1", 0.5);
-//      sphere1 = new ForcedSphere(odeHandle, osgHandle.changeColor(Color(1.0,0.0,0.0))
-//                                 , ForcedSphere::getDefaultConf(), "FSphere");
+      // sphere1 = new ForcedSphere(odeHandle, osgHandle.changeColor(Color(1.0,0.0,0.0))
+      //                            , ForcedSphere::getDefaultConf(), "FSphere");
 
       // sphere1->place ( Pos(-3,1/2,3+2*i));
       sphere1->place ( Pos(5, i*2, height));
