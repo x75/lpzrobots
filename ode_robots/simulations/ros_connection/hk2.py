@@ -7,8 +7,11 @@ $ python hk.py -h"""
 
 import time, argparse, sys
 import numpy as np
+import scipy.sparse as spa
 import rospy
 from std_msgs.msg import Float64MultiArray
+
+from reservoirs import Reservoir
 
 # TLE = False
 # TLE = True
@@ -29,14 +32,17 @@ class LPZRos(object):
         # ros stuff
         rospy.init_node(self.name)
         # pub=rospy.Publisher("/motors", Float64MultiArray, queue_size=1)
-        self.pub_motors  = rospy.Publisher("/motors", Float64MultiArray)
+        self.pub_motors  = rospy.Publisher("/motors", Float64MultiArray, queue_size = 2)
         self.sub_sensor = rospy.Subscriber("/sensors", Float64MultiArray, self.cb_sensors)
+        self.pub_sensor_exp = rospy.Publisher("/sensors_exp", Float64MultiArray, queue_size = 2)
         # pub=rospy.Publisher("/chatter", Float64MultiArray)
-        self.msg=Float64MultiArray()
+        self.msg_motors     = Float64MultiArray()
+        self.msg_sensor_exp = Float64MultiArray()
 
         ############################################################
         # model + meta params
-        self.numsen = 2
+        self.numsen_raw = 2
+        self.numsen = 20
         self.nummot = 2
         self.bufsize = 2
         self.creativity = 0.5
@@ -49,33 +55,67 @@ class LPZRos(object):
 
         ############################################################
         # forward model
-        self.A = np.eye(self.numsen) * 1.
+        # self.A = np.eye(self.numsen) * 1.
+        self.A  = np.zeros((self.numsen, self.nummot))
+        self.A[range(self.nummot),range(self.nummot)] = 1.
         self.b = np.zeros((self.numsen,1))
         # controller
-        self.C  = np.eye(self.nummot) * 0.4
+        # self.C  = np.eye(self.nummot) * 0.4
+        self.C  = np.zeros((self.nummot, self.numsen))
+        self.C[range(self.nummot),range(self.nummot)] = 1 * 0.4
+        print "self.C", self.C
         self.h  = np.zeros((self.nummot,1))
         self.g  = np.tanh # sigmoidal activation function
         self.g_ = dtanh # derivative of sigmoidal activation function
         # state
         self.x = np.ones ((self.numsen, self.bufsize))
-        self.y = np.zeros((self.numsen, self.bufsize))
+        self.y = np.zeros((self.nummot, self.bufsize))
         self.z = np.zeros((self.numsen, 1))
         # auxiliary variables
         self.L     = np.zeros((self.numsen, self.nummot))
         self.v_avg = np.zeros((self.numsen, 1)) 
         self.xsi   = np.zeros((self.numsen, 1))
+
+        # expansion
+        self.exp_size = self.numsen
+        self.exp_hidden_size = 100
+        self.res = Reservoir(N = self.exp_hidden_size, p = 0.1, g = 1.5, tau = 0.1, input_num = self.numsen_raw, input_scale = 5.0)
+        self.res_wo_expand     = np.random.randint(0, self.exp_hidden_size, self.exp_size)
+        self.res_wo_expand_amp = np.random.uniform(0, 1, (self.exp_size, 1)) * 0.8
+        self.res_wi_expand_amp = np.random.uniform(0, 1, (self.exp_size, self.numsen_raw)) * 1.0
+        
+    def expansion_random_system(self, x, dim_target = 1):
+        # dim_source = x.shape[0]
+        print "x", x.shape
+        self.res.execute(x)
+        print "self.res.r", self.res.r.shape
+        a = self.res.r[self.res_wo_expand]
+        print "a.shape", a.shape
+        b = a * self.res_wo_expand_amp
+        print "b.shape", b.shape
+        c = b + np.dot(self.res_wi_expand_amp, x)
+        return c
         
     def cb_sensors(self, msg):
         """lpz sensors callback: receive sensor values, sos algorithm attached"""
-        # self.msg.data = []
+        # self.msg_motors.data = []
         self.x = np.roll(self.x, 1, axis=1) # push back past
         self.y = np.roll(self.y, 1, axis=1) # push back past
         # update with new sensor data
-        self.x[:,0] = msg.data
+        # self.x[:,0] = msg.data
+        print "msg.data", msg.data
+        xa = np.array([msg.data]).T
+        self.x[:,[0]] = self.expansion_random_system(xa, dim_target = self.numsen)
+        self.msg_sensor_exp.data = self.x.flatten().tolist()
+        self.pub_sensor_exp.publish(self.msg_sensor_exp)
         # compute new motor values
         x_tmp = np.atleast_2d(self.x[:,0]).T + self.v_avg * self.creativity
+        print "x_tmp.shape", x_tmp.shape
         # print self.g(np.dot(self.C, x_tmp) + self.h)
-        self.y[:,0] = self.g(np.dot(self.C, x_tmp) + self.h).reshape((self.nummot,))
+        m1 = np.dot(self.C, x_tmp)
+        print "m1.shape", m1.shape
+        t1 = self.g(m1 + self.h).reshape((self.nummot,))
+        self.y[:,0] = t1
 
         self.cnt += 1
         if self.cnt <= 2: return
@@ -157,11 +197,11 @@ class LPZRos(object):
         # print "h", self.h
         # print "y", self.y
                 
-        # self.msg.data.append(m[0])
-        # self.msg.data.append(m[1])
-        self.msg.data = self.y[:,0].tolist()
+        # self.msg_motors.data.append(m[0])
+        # self.msg_motors.data.append(m[1])
+        self.msg_motors.data = self.y[:,0].tolist()
         # print("sending msg", msg)
-        self.pub_motors.publish(self.msg)
+        self.pub_motors.publish(self.msg_motors)
         # time.sleep(0.1)
         # if self.cnt > 20:
         #     rospy.signal_shutdown("stop")

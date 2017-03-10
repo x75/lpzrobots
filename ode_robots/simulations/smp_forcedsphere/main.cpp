@@ -84,6 +84,7 @@
 #include <ode_robots/odeagent.h>
 #include <ode_robots/octaplayground.h> // arena
 #include <ode_robots/playground.h>
+#include <ode_robots/terrainground.h>
 #include <ode_robots/passivesphere.h>  // passive balls
 #include <ode_robots/passivebox.h>
 #include <ode_robots/joint.h>
@@ -104,11 +105,14 @@
 
 // sensors
 #include <ode_robots/axisorientationsensor.h>
+#include <ode_robots/relativepositionsensor.h>
 // camera
 #include <ode_robots/camera.h>
 #include <ode_robots/imageprocessors.h>
 #include <ode_robots/camerasensors.h>
 #include <ode_robots/opticalflow.h>
+
+// #include <ode_robots/addsensors2robotadapter.h>
 
 // fetch all the stuff of lpzrobots into scope
 using namespace lpzrobots;
@@ -201,9 +205,67 @@ public:
     // test forced sphere
     ForcedSphereConf conf2 = ForcedSphere::getDefaultConf();
     conf2.radius = 0.5;
+    
+    CameraConf camc = Camera::getDefaultConf();
+    camc.width = 256;
+    camc.height = 128;
+    camc.scale  = 1;
+    camc.fov    =  120;
+    camc.camSize = 0.08;
+    camc.processors.push_back(new HSVImgProc(false,1));
+    //    camc2.processors.push_back(new BWImageProcessor(true,1, BWImageProcessor::Saturation));
+    camc.processors.push_back(new ColorFilterImgProc(true,.5,
+						     HSVImgProc::Red+20,
+						     HSVImgProc::Green-20,100));
+
+    CameraSensor* camsensor;
+    int sensorType = 4;
+    OpticalFlowConf ofc = OpticalFlow::getDefaultConf();
+    switch(sensorType) {
+    case 1: /// Left and right side brighness (of Yellow)
+      camc.processors.push_back(new LineImgProc(true,20, 2));
+      //camc.processors.push_back(new AvgImgProc(true,20, 15));
+      camsensor = new DirectCameraSensor();
+      break;
+    case 2: /// Using the position of Yellow object
+      camsensor = new PositionCameraSensor();//PositionCameraSensor::PositionAndSize);
+      break;
+    case 3: /// Motion detection (global optical flow if Yellow object(s))
+      camsensor = new MotionCameraSensor(); //, MotionCameraSensor::PositionAndSize);
+      break;
+    case 4: /// Optical flow of raw image
+      camc.processors.clear(); // no preprocessing
+      ofc.points = OpticalFlow::getDefaultPoints(1);
+      ofc.dims   = Sensor::X;
+      ofc.verbose = 3;
+      ofc.maxFlow = 0.12;
+      ofc.fieldSize = 24;
+      camsensor = new OpticalFlow(ofc);
+      break;
+    default:
+      assert(0);
+      // break;
+    }
+    
+    Camera* cam = new Camera(camc);
+    osg::Matrix camPos = osg::Matrix::rotate(M_PI/2,0,0,1)
+      * osg::Matrix::translate(-0.2,0,0.40);
+    OsgHandle camOsgHandle = osgHandle.changeColor(Color(0.2,0.2,0.2));
+    camsensor->setInitData(cam, odeHandle, camOsgHandle,camPos);
+    std::list<Sensor*> sensors;
+    sensors.push_back(camsensor);
+    
+    conf2.addSensor(camsensor);
+    // conf2.sensors.push_back(camsensor);
+    
+    // we put the camerasensor now onto the robot (which does not support it by itself)
+    // OdeRobot* robot = new AddSensors2RobotAdapter( odeHandle, osgHandle, sphere2, sensors);
+    // robot->place(osg::Matrix::rotate(M_PI, 0,0,1)*osg::Matrix::translate(3,0,0.3));
+    
     sphere2 = new ForcedSphere(odeHandle, osgHandle.changeColor(Color(0.0,1.0,0.0)), conf2, "Sphere2");
-    ((OdeRobot*)sphere2)->place ( Pos( 0 , 0.1 , 0 ));
     global.configs.push_back ( sphere2 );
+    
+    ((OdeRobot*)sphere2)->place ( Pos( 0 , 0.1 , 0 ));
     
     //  SineController (produces just sine waves)
     controller2 = new SineController();
