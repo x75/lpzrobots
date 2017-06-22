@@ -69,9 +69,9 @@ public:
   // starting function (executed once at the beginning of the simulation loop)
   void start(const OdeHandle& odeHandle, const OsgHandle& osgHandle, GlobalData& global)
   {
-    int num_barrels=0;
+    int num_barrels=1;
     int num_barrels_test=0;
-    int num_nimm2 = 1;
+    int num_nimm2 = 0;
 
     sensor=0;
     setCameraMode(Follow);
@@ -140,7 +140,7 @@ public:
 
       // controller = new Sox();
       // controller->setParam("epsC", 0.5);
-      controller = new ROSController("Test");
+      controller = new ROSController("lpzbarrel");
 
       AbstractWiring* wiring = new SelectiveOne2OneWiring(new ColorUniformNoise(), new select_from_to(0,1));
       //      OdeAgent* agent = new OdeAgent ( PlotOption(File, Robot, 1) );
@@ -203,7 +203,7 @@ public:
       nimm2->setColor(Color(.9,.9,0.0));        
       nimm2->place(Pos(2.,0.,.2));
 
-      controller = new ROSController("Test_Two_Wheeled");
+      controller = new ROSController("lpztwowheeled");
 
       AbstractWiring* wiring = new SelectiveOne2OneWiring(new ColorUniformNoise(), new select_from_to(0,1));
       //      OdeAgent* agent = new OdeAgent ( PlotOption(File, Robot, 1) );
