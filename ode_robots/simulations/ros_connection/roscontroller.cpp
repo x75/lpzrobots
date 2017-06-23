@@ -47,9 +47,12 @@ void ROSController::init(int sensornumber, int motornumber, RandGen* randGen){
 
   std::string sensor_msg_name = getName();
   sensor_msg_name += "/sensors";
+
+  std::string motor_msg_name = getName();
+  motor_msg_name += "/motors";
     
   sensor_pub = n.advertise<std_msgs::Float64MultiArray>(sensor_msg_name, 1);
-  motor_sub  = n.subscribe("/motors", 1, &ROSController::motorsCallback, this);
+  motor_sub  = n.subscribe(motor_msg_name, 1, &ROSController::motorsCallback, this);
   motorValues = (motor*)malloc(sizeof(motor)*motornumber);
   memset(motorValues,0,sizeof(double)*motornumber);
 
