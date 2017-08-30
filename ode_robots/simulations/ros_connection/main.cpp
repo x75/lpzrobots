@@ -108,7 +108,7 @@ public:
       conf.motorpowerfactor  = 200;//150;
       conf.motorsensor=false;
       conf.addSensor(new AxisOrientationSensor(AxisOrientationSensor::ZProjection, Sensor::X | Sensor::Y));
-      conf.spheremass   = 1;
+      conf.spheremass   = 0.1;
 
       conf.addSensor(new SpeedSensor(10, SpeedSensor::Translational, Sensor::X ));
       conf.irAxis1=false;
