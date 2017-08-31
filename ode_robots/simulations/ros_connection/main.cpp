@@ -81,10 +81,10 @@ public:
     //    setCameraHomePos(Pos(-0.497163, 11.6358, 3.67419),  Pos(-179.213, -11.6718, 0));
     setCameraHomePos(Pos(-2.60384, 13.1299, 2.64348),  Pos(-179.063, -9.7594, 0));
     // initialization
-    global.odeConfig.setParam("noise",0.1);
+    global.odeConfig.setParam("noise", 1e-3);
     //  global.odeConfig.setParam("gravity",-10);
-    global.odeConfig.setParam("controlinterval",4);
-    global.odeConfig.setParam("realtimefactor",5);
+    global.odeConfig.setParam("controlinterval", 4);
+    global.odeConfig.setParam("realtimefactor", 1.0);
 
     // add a new parameter to be configured on the console
     global.odeConfig.addParameterDef("friction", &friction, 0.1, "rolling friction coefficient");
