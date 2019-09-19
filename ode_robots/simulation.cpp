@@ -323,7 +323,7 @@ namespace lpzrobots {
 
       // construct the viewer.
       viewer = new LPZViewer(*arguments);
-      if(useOsgThread && !osgHandle.cfg->shadowType==3){ // ParallelSplitShadowMap does not support threads
+      if(useOsgThread && !(osgHandle.cfg->shadowType==3)){ // ParallelSplitShadowMap does not support threads
         viewer->setThreadingModel(Viewer::CullDrawThreadPerContext);
       }else{
         viewer->setThreadingModel(Viewer::SingleThreaded);
@@ -984,10 +984,6 @@ namespace lpzrobots {
     au.addKeyboardMouseBinding("Sim: Ctrl-s","change shadow technique");
     au.addKeyboardMouseBinding("Sim: o / O","add/remove random obstacle");
     bindingDescription(au);
-  }
-
-  void Simulation::accept(osgGA::GUIEventHandlerVisitor& v) {
-    v.visit(*this);
   }
 
   bool Simulation::startVideoRecording(const char* name){
