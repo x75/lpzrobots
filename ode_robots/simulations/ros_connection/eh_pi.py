@@ -169,12 +169,12 @@ class LPZRosEH(object):
 
         # print res.x, res.r, res.z, res.zn
 
-        print '   N: ', self.N
-        print '   g: ', self.g
-        print '   p: ', self.p
-        print '   nsecs: ', self.nsecs
-        print '   learn_every: ', self.learn_every
-        print '   theta: ', self.theta
+        print('   N: ', self.N)
+        print('   g: ', self.g)
+        print('   p: ', self.p)
+        print('   nsecs: ', self.nsecs)
+        print('   learn_every: ', self.learn_every)
+        print('   theta: ', self.theta)
 
         # set point for goal based learning
         self.sp = 0.4
@@ -194,7 +194,7 @@ class LPZRosEH(object):
         self.wgt_lim_inv = 1/self.wgt_lim
         
         self.init = True
-        print "init done"
+        print("init done")
 
     def soft_bound(self):
         # FIXME: for now its actually hard bounded
@@ -202,7 +202,7 @@ class LPZRosEH(object):
         # FIXME: decouple the readouts / investigate coupled vs. uncoupled
         # 1 determine norm
         wo_norm = np.linalg.norm(self.res.wo, 2)
-        print "|wo| =", wo_norm
+        print("|wo| =", wo_norm)
         # 2 scale weights down relatively to some setpoint norm
         if wo_norm > self.wgt_lim:
             self.res.wo /= (wo_norm * self.wgt_lim_inv)
@@ -211,7 +211,7 @@ class LPZRosEH(object):
                 if np.random.uniform(0., 1.) > 0.95:
                     numchoice = np.random.randint(0, 5)
                     selidx = np.random.choice(self.N, numchoice, replace=False)
-                    print "randomize weights", selidx
+                    print("randomize weights", selidx)
                     # self.res.wo[selidx, ro_idx] += np.random.normal(self.res.wo[selidx, ro_idx], 0.001)
                     # reduce weights only
                     self.res.wo[selidx, ro_idx] -= np.random.exponential(0.001, numchoice)
@@ -283,7 +283,7 @@ class LPZRosEH(object):
                 else:
                     self.perf[0,sysdim] = 0.
                     # print "pis", pis
-            print "perf", self.perf
+            print("perf", self.perf)
 
             # recent performance
             self.perf_lp = self.perf_lp * (1 - self.coeff_a) + self.perf * self.coeff_a
@@ -360,10 +360,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    print "jvm", isThreadAttachedToJVM()
+    print("jvm", isThreadAttachedToJVM())
     # sanity check
     if not args.mode in LPZRosEH.modes:
-        print "invalid mode string, use one of " + str(LPZRosEH.modes)
+        print("invalid mode string, use one of " + str(LPZRosEH.modes))
         sys.exit(0)
     
     lpzros = LPZRosEH(args.mode)

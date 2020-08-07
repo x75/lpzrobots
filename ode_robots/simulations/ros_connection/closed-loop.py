@@ -26,7 +26,7 @@ class LPZRos(object):
         s = msg.data
         m = np.tanh(np.dot(self.A, s) + np.ones_like(s) * 0.1)
 
-        print "m =", m
+        print("m =", m)
         
         self.msg.data.append(m[0])
         self.msg.data.append(m[1])

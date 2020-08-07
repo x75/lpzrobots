@@ -29,8 +29,8 @@ class LPZRos(object):
         # ros stuff
         rospy.init_node(self.name)
         # pub=rospy.Publisher("/motors", Float64MultiArray, queue_size=1)
-        self.pub_motors  = rospy.Publisher("/motors", Float64MultiArray)
-        self.sub_sensor = rospy.Subscriber("/sensors", Float64MultiArray, self.cb_sensors)
+        self.pub_motors  = rospy.Publisher("/lpzbarrel/motors", Float64MultiArray)
+        self.sub_sensor = rospy.Subscriber("/lpzbarrel/sensors", Float64MultiArray, self.cb_sensors)
         # pub=rospy.Publisher("/chatter", Float64MultiArray)
         self.msg=Float64MultiArray()
 
@@ -44,8 +44,8 @@ class LPZRos(object):
         self.epsA = 0.02
         # self.epsA = 0.001
         # self.epsC = 0.001
-        # self.epsC = 0.1
-        self.epsC = 0.5
+        self.epsC = 0.1
+        # self.epsC = 0.5
 
         ############################################################
         # forward model
@@ -97,33 +97,33 @@ class LPZRos(object):
         g_prime = dtanh(z) # derivative of g
         g_prime_inv = idtanh(z) # inverse derivative of g
 
-        print "g_prime", self.cnt, g_prime
-        print "g_prime_inv", self.cnt, g_prime_inv
+        print("g_prime", self.cnt, g_prime)
+        print("g_prime_inv", self.cnt, g_prime_inv)
         
         xsi = x_fut - (np.dot(self.A, y) + self.b)
-        print "xsi =", xsi
+        print("xsi =", xsi)
         
         # forward model learning
         self.A += self.epsA * np.dot(xsi, y.T) + (self.A * -0.003) * 0.1
         # self.A += self.epsA * np.dot(xsi, np.atleast_2d(self.y[:,0])) + (self.A * -0.003) * 0.1
         self.b += self.epsA * xsi              + (self.b * -0.001) * 0.1
 
-        print "A", self.cnt, self.A
+        print("A", self.cnt, self.A)
         # print "b", self.b
 
         if self.mode == 1: # TLE / homekinesis
             eta = np.dot(np.linalg.pinv(self.A), xsi)
             zeta = np.clip(eta * g_prime_inv, -1., 1.)
-            print "eta", self.cnt, eta
-            print "zeta", self.cnt, zeta
+            print("eta", self.cnt, eta)
+            print("zeta", self.cnt, zeta)
             # print "C C^T", np.dot(self.C, self.C.T)
             # mue = np.dot(np.linalg.pinv(np.dot(self.C, self.C.T)), zeta)
             lambda_ = np.eye(2) * np.random.uniform(-0.01, 0.01, 2)
             mue = np.dot(np.linalg.pinv(np.dot(self.C, self.C.T) + lambda_), zeta)
             v = np.clip(np.dot(self.C.T, mue), -1., 1.)
             self.v_avg += (v - self.v_avg) * 0.1
-            print "v", self.cnt, v
-            print "v_avg", self.cnt, self.v_avg
+            print("v", self.cnt, v)
+            print("v_avg", self.cnt, self.v_avg)
             EE = 1.0
 
             # print EE, v
@@ -144,7 +144,7 @@ class LPZRos(object):
             
         elif self.mode == 0: # homestastic learning
             eta = np.dot(self.A.T, xsi)
-            print "eta", self.cnt, eta.shape, eta
+            print("eta", self.cnt, eta.shape, eta)
             dC = np.dot(eta * g_prime, x.T) * self.epsC
             dh = eta * g_prime * self.epsC
             # print dC, dh
@@ -175,7 +175,7 @@ if __name__ == "__main__":
 
     # sanity check
     if not args.mode in LPZRos.modes:
-        print "invalid mode string, use one of " + str(LPZRos.modes)
+        print("invalid mode string, use one of " + str(LPZRos.modes))
         sys.exit(0)
     
     lpzros = LPZRos(args.mode)

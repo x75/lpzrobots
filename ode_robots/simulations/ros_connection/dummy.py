@@ -19,7 +19,7 @@ for i in range(100):
 	msg.data = []
 	msg.data.append(np.cos(2*np.pi*(i/10.)))
 	msg.data.append(np.sin(2*np.pi*(i/10.)))
-	print("sending msg", msg)
+	print(("sending msg", msg))
 	pub.publish(msg)
 	time.sleep(0.1)
 	# rospy.spin()
